@@ -45,6 +45,17 @@ public class InventoryDAO extends DAOBase {
 
     public void storeInventoryChange(Integer storeNumber, String productSKU, Integer inventoryChange) {
 
+        /*
+        CREATE TABLE inventory (
+          store_no int,
+          product_sku varchar,
+          inventory_count int,
+          last_updated timestamp DEFAULT NOW(),
+          update_count int DEFAULT 0,
+          PRIMARY KEY ( store_no, product_sku )
+        );
+        */
+
         if (_storageDestination == StorageDestination.DATABASE) {
             String sql = "INSERT INTO inventory ( store_no, product_sku, inventory_count ) " +
                     "VALUES ( ?, ?, ? ) " +
@@ -63,12 +74,12 @@ public class InventoryDAO extends DAOBase {
             String value = inventoryChange.toString();
 
             try {
-                ProducerRecord<String, String> record = new ProducerRecord<String, String>(TOPIC, key, value);
+                //TODO: make a JSON document to pass in as the value with additional information
+                ProducerRecord<String, String> record = new ProducerRecord<>(TOPIC, key, value);
 
                 RecordMetadata metadata = producer.send(record).get();
 
-                logger.debug("Sent record(key=%s value=%s) meta(partition=%d, offset=%d) time=%d\n",
-                        record.key(), record.value(), metadata.partition(), metadata.offset());
+                logger.debug(String.format("Sent record(key=%s value=%s) meta(partition=%d, offset=%d) time=%d\n", record.key(), record.value(), metadata.partition(), metadata.offset(), metadata.timestamp()));
             }
             catch(Exception e) {
                 logger.error(e.toString());

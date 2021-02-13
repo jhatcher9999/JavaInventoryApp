@@ -21,20 +21,53 @@ public class DAOBase {
     private void initializeDataSource(){
 
         //TODO: pull these settings from config
-        //   OR maybe just pass in a connection string from the config instead of building all this from individual props
 
-        //TODO: get a version working with SSL
+        /*
+            Setup for user:
+            cockroach cert create-client app1 --certs-dir=certs --ca-key=my-safe-directory/ca.key
+
+            create user app1;
+            create database invmgmt;
+            grant all on database invmgmt to app1;
+        */
+        String user = "app1";
+        String host = "localhost";
+        int port = 26257;
+        String databaseName = "invmgmt";
+
+        /*
+            Java apps using JDBC expect certs to be in a DER format which is not the default format that the "cockroach cert create-client" command produces (it creates PEM format).
+
+            You can create DER-formatted certs from the PEM-formatted with these commands:
+
+            openssl pkcs8 -topk8 -inform PEM -outform DER -in client.app1.key -out client.app1.key.der -nocrypt
+            openssl x509 -outform der -in ca.crt -out ca.crt.der
+            openssl x509 -outform der -in client.app1.crt -out client.app1.crt.der
+         */
+        boolean useSsl = true;
+        String sslMode = "verify-full";
+        String sslCertPath = "/Users/jimhatcher/local_certs/client.app1.crt.der";
+        String sslKeyPath = "/Users/jimhatcher/local_certs/client.app1.key.der";
+        String sslRootCertPath = "/Users/jimhatcher/local_certs/ca.crt.der";
+
 
         ds = new PGSimpleDataSource();
-        ds.setServerNames(new String[]{"localhost"});
-        ds.setPortNumbers(new int[]{26257});
-        ds.setDatabaseName("invmgmt");
-        ds.setUser("root");
-        ds.setPassword("");
-        ds.setSsl(false);
-        //ds.setSslMode("require");
-        //ds.setReWriteBatchedInserts(true); // add `rewriteBatchedInserts=true` to pg connection string
+        ds.setServerNames(new String[]{host});
+        ds.setPortNumbers(new int[]{port});
+        ds.setDatabaseName(databaseName);
+        ds.setUser(user);
+        //not setting a password (i.e. ds.setPassword("secret")) because we're authenticating with certs
         ds.setApplicationName("JavaInventoryApp");
+
+        ds.setSsl(useSsl);
+        if (useSsl) {
+            ds.setSslMode(sslMode);
+            ds.setSslCert(sslCertPath);
+            ds.setSslKey(sslKeyPath);
+            ds.setSslRootCert(sslRootCertPath);
+
+        }
+
     }
 
     /**
@@ -127,7 +160,7 @@ public class DAOBase {
 
                                     // This printed output is for debugging and/or demonstration
                                     // purposes only.  It would not be necessary in production code.
-                                    logger.debug("    %-8s => %10s\n", name, val);
+                                    //logger.debug("    %-8s => %10s\n", name, val);
                                 }
                             }
                         }
@@ -153,11 +186,11 @@ public class DAOBase {
                         // through the loop we sleep for a little
                         // longer than the last time
                         // (A.K.A. exponential backoff).
-                        logger.warn("retryable exception occurred:\n    sql state = [%s]\n    message = [%s]\n    retry counter = %s\n", e.getSQLState(), e.getMessage(), retryCount);
+                        logger.warn(String.format("retryable exception occurred:\n    sql state = [%s]\n    message = [%s]\n    retry counter = %s\n", e.getSQLState(), e.getMessage(), retryCount));
                         connection.rollback();
                         retryCount++;
                         int sleepMillis = (int)(Math.pow(2, retryCount) * 100) + rand.nextInt(100);
-                        logger.warn("Hit 40001 transaction retry error, sleeping %s milliseconds\n", sleepMillis);
+                        logger.warn(String.format("Hit 40001 transaction retry error, sleeping %s milliseconds\n", sleepMillis));
                         try {
                             Thread.sleep(sleepMillis);
                         } catch (InterruptedException ignored) {
@@ -172,8 +205,7 @@ public class DAOBase {
                 }
             }
         } catch (SQLException e) {
-            logger.error("BasicExampleDAO.runSQL ERROR: { state => %s, cause => %s, message => %s }\n",
-                    e.getSQLState(), e.getCause(), e.getMessage());
+            logger.error(String.format("BasicExampleDAO.runSQL ERROR: { state => %s, cause => %s, message => %s }\n", e.getSQLState(), e.getCause(), e.getMessage()));
             rv = -1;
         }
 
@@ -254,11 +286,11 @@ public class DAOBase {
                         // through the loop we sleep for a little
                         // longer than the last time
                         // (A.K.A. exponential backoff).
-                        logger.warn("retryable exception occurred:\n    sql state = [%s]\n    message = [%s]\n    retry counter = %s\n", e.getSQLState(), e.getMessage(), retryCount);
+                        logger.warn(String.format("retryable exception occurred:\n    sql state = [%s]\n    message = [%s]\n    retry counter = %s\n", e.getSQLState(), e.getMessage(), retryCount));
                         connection.rollback();
                         retryCount++;
                         int sleepMillis = (int)(Math.pow(2, retryCount) * 100) + rand.nextInt(100);
-                        logger.warn("Hit 40001 transaction retry error, sleeping %s milliseconds\n", sleepMillis);
+                        logger.warn(String.format("Hit 40001 transaction retry error, sleeping %s milliseconds\n", sleepMillis));
                         try {
                             Thread.sleep(sleepMillis);
                         } catch (InterruptedException ignored) {
@@ -272,8 +304,7 @@ public class DAOBase {
                 }
             }
         } catch (SQLException e) {
-            logger.error("runSQLSelect ERROR: { state => %s, cause => %s, message => %s }\n",
-                    e.getSQLState(), e.getCause(), e.getMessage());
+            logger.error(String.format("runSQLSelect ERROR: { state => %s, cause => %s, message => %s }\n", e.getSQLState(), e.getCause(), e.getMessage()));
         }
 
         return rs;
